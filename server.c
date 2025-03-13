@@ -6,6 +6,8 @@
 #include<sys/socket.h>
 #include<unistd.h>
 
+#include"helper.c"
+
 void getPath(char *req, char* path);
 
 int main(int argc, char* argv[]){
@@ -19,6 +21,7 @@ int main(int argc, char* argv[]){
     
     if(sockfd < 0){
         perror("Error opening socket");
+        exit(1);
     }
 
     struct sockaddr_in servAddr;
@@ -28,6 +31,7 @@ int main(int argc, char* argv[]){
 
     if(bind(sockfd, (struct sockaddr *)&servAddr, sizeof(servAddr)) < 0){
         perror("Binding failed");
+        exit(1);
     }
 
     if(listen(sockfd, 5) < 0)
@@ -55,26 +59,21 @@ int main(int argc, char* argv[]){
         char path[256];
 
         int n = read(newsockfd, buff, sizeof(buff));
-        printf("Request: %s\n", buff);
         getPath(buff, path);
         printf("Path: %s\n", path);
 
-        bzero(buff, sizeof(buff));
-        sprintf(buff,
-                "HTTP/1.1 200 OK\r\n"
-                "Content-Type: text/html\r\n"
-                "Content-Length: %d\r\n\r\n"
-                "<html>%s</html>",
-                strlen(path) + 13,
-                path
-        );
+        if(strcmp(path, "/") == 0){
+            n = writeDirectoryListing(newsockfd);
+            
+            if(n < 0)
+                exit(1);
 
-        printf("Response: %s\n", buff);
+        }else{
+            n = writeFile(newsockfd, path);
 
-        n = write(newsockfd, buff, strlen(buff)); 
-
-        if(n < 0)
-            perror("Error on write");
+            if(n < 0)
+                exit(1);
+        }
 
         close(newsockfd);
     }
