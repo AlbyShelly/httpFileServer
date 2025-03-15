@@ -1,3 +1,4 @@
+#include<arpa/inet.h>
 #include<fcntl.h>
 #include<netinet/in.h>
 #include<stdio.h>
@@ -13,7 +14,7 @@ void getPath(char *req, char* path);
 int main(int argc, char* argv[]){
 
     if(argc != 2){
-        printf("Usage: ./server portno.");
+        printf("Usage: ./server portno.\n");
         exit(1);
     }
     
@@ -37,7 +38,7 @@ int main(int argc, char* argv[]){
     if(listen(sockfd, 5) < 0)
         perror("listen failed");
 
-    printf("Server: started successfully\n");
+    printf("Server: Started running...\n");
 
     struct sockaddr_in cltAddr;
     socklen_t cltAddrlen = sizeof(cltAddr);
@@ -53,26 +54,59 @@ int main(int argc, char* argv[]){
 
         }while(newsockfd < 0);
 
-        printf("Server: client connected successfully\n");
+        printf("Server: client connected port %d ip %s\n", ntohs(cltAddr.sin_port), inet_ntoa(cltAddr.sin_addr));
 
         char buff[1024];
         char path[256];
 
         int n = read(newsockfd, buff, sizeof(buff));
+        
+        printf("Request: ");
+        
+        for(int i = 0; buff[i] != '\r'; i++)
+            printf("%c", buff[i]);
+        
+        printf("\n");
+
         getPath(buff, path);
-        printf("Path: %s\n", path);
 
         if(strcmp(path, "/") == 0){
-            n = writeDirectoryListing(newsockfd);
             
-            if(n < 0)
+            printf("Jump: writeDirectoryListing\n");
+
+            if(writeDirectoryListing(newsockfd, ".") < 0)
                 exit(1);
 
         }else{
-            n = writeFile(newsockfd, path);
 
-            if(n < 0)
-                exit(1);
+            //check route if file or dir
+            struct stat sb;
+
+            //file not exsist    
+            if(stat(path+1, &sb) < 0){
+
+                printf("Jump: writeFileNotFound\n");
+
+                if(writeFileNotFound(newsockfd) < 0){
+                    exit(1);
+                }
+
+            }else if((sb.st_mode & S_IFMT) == S_IFDIR){
+                
+                printf("Jump: writeDirectoryListing\n");
+
+                if(writeDirectoryListing(newsockfd, path+1) < 0){
+                    exit(1);
+                }
+
+            }else{
+
+                printf("Jump: writeFile\n");
+                
+                if(writeFile(newsockfd, path) < 0){
+                    exit(1);
+                }
+            }
         }
 
         close(newsockfd);

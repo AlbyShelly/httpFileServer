@@ -5,10 +5,39 @@
 #include<sys/types.h>
 #include<unistd.h>
 
-int writeDirectoryListing(int sockfd){
+int writeAll(int fd, char *buff, int n){
+    
+    int count = 0;
+     
+    for(;;){
+        
+        printf("Server: count- %d \n", count);
+        printf("Server: buff- %p \n", buff);
+        printf("Server: n- %d \n", n);
+
+        count = write(fd, buff, n);
+
+        if(count < 0){
+
+            perror("Error on write");
+
+        }else{
+
+            buff += count;
+            n -= count;
+
+            if(n == 0)
+                break;
+        }
+    }
+
+    return 0;
+}
+
+int writeDirectoryListing(int sockfd, char* path){
     
     //calculate the body size
-    DIR *dirp = opendir(".");
+    DIR *dirp = opendir(path);
     struct dirent *entry;
     
     if(dirp == NULL){
@@ -25,26 +54,34 @@ int writeDirectoryListing(int sockfd){
 
     n += sprintf(buffbody + n, "</ul></html>");
 
-    char buffheader[1024];
-    write(sockfd, 
-          buffheader,
-          sprintf(buffheader,
-                  "HTTP/1.1 200 OK\r\n"
-                  "Content-Type: text/html\r\n"
-                  "Content-Length: %d\r\n\r\n",
-                  n
-          )
-    );
+    int bodyLength = n;
 
-    n = write(sockfd, buffbody, n);
+    char buffheader[1024];
+    n = write(sockfd, 
+             buffheader,
+             sprintf(buffheader,
+                     "HTTP/1.1 200 OK\r\n"
+                     "Content-Type: text/html\r\n"
+                     "Connection: close\r\n"
+                     "Content-Length: %d\r\n\r\n",
+                     n
+             )
+    );
 
     if(n < 0){
         perror("Error on write");
         return -1;
     }
-    
-    printf("%s\n", buffheader);
 
+    n = writeAll(sockfd, buffbody, bodyLength);
+
+    if(n < 0){
+        perror("Error on write");
+        return -1;
+    }
+
+    printf("Response: HTTP/1.1 200 OK\n");
+    
     return 0;
 }
 
@@ -53,6 +90,7 @@ int writeFile(int sockfd, char *file){
     printf("Path: %s\n", file + 1);
     char buff[1024] = "HTTP/1.1 200 OK\r\n"
                       "Content-Disposition: attachment\r\n"
+                      "Connection: close\r\n"
                       "filename=\"%s\"\r\n"
                       "Content-Length: %d\r\n\r\n";
     
@@ -72,8 +110,7 @@ int writeFile(int sockfd, char *file){
         return -1;
     }
 
-    printf("%s\n", buff + 512);
-
+    printf("Response: HTTP/1.1 200 OK\n");
 
     //open and write file
     FILE *fptr = fopen(file + 1, "r"); //truncate / in file name
@@ -94,6 +131,25 @@ int writeFile(int sockfd, char *file){
 
     }
 
+    return 0;
+}
+
+int writeFileNotFound(int sockfd){
+
+    char buff[] = "HTTP/1.1 404 Not Found\r\n"
+                  "Content-Length: 16\r\n"
+                  "HTTP/1.1 404 Not Found\r\n"
+                  "\r\n"
+                  "<html>404</html>";
+
+    int n = write(sockfd, buff, sizeof(buff)); 
+
+    if(n < 0){
+        perror("Error on write");
+        return -1;
+    }
+
+    printf("Response: HTTP/1.1 404 Not Found\n");
     return 0;
 }
 
