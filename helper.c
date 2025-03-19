@@ -5,6 +5,7 @@
 #include<sys/types.h>
 #include<unistd.h>
 
+
 int writeAll(int fd, char *buff, int n){
     
     int count = 0;
@@ -46,10 +47,11 @@ int writeDirectoryListing(int sockfd, char* path){
     } 
     
     char buffbody[1024]; 
+
     int n = sprintf(buffbody, "<html><ul>");
 
     while((entry = readdir(dirp)) != NULL){
-        n += sprintf(buffbody + n, "<li><a href=\"/%s\">%s</a></li>", entry->d_name, entry->d_name);
+        n += sprintf(buffbody + n, "<li><a href=\"/%s/%s\">%s</a></li>", path, entry->d_name, entry->d_name);
     }
 
     n += sprintf(buffbody + n, "</ul></html>");
@@ -73,7 +75,7 @@ int writeDirectoryListing(int sockfd, char* path){
         return -1;
     }
 
-    n = writeAll(sockfd, buffbody, bodyLength);
+    n = write(sockfd, buffbody, bodyLength);
 
     if(n < 0){
         perror("Error on write");
@@ -86,7 +88,7 @@ int writeDirectoryListing(int sockfd, char* path){
 }
 
 int writeFile(int sockfd, char *file){
-    
+
     printf("Path: %s\n", file + 1);
     char buff[1024] = "HTTP/1.1 200 OK\r\n"
                       "Content-Disposition: attachment\r\n"
@@ -135,7 +137,7 @@ int writeFile(int sockfd, char *file){
 }
 
 int writeFileNotFound(int sockfd){
-
+    
     char buff[] = "HTTP/1.1 404 Not Found\r\n"
                   "Content-Length: 16\r\n"
                   "HTTP/1.1 404 Not Found\r\n"

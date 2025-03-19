@@ -1,6 +1,7 @@
 #include<arpa/inet.h>
 #include<fcntl.h>
 #include<netinet/in.h>
+#include<signal.h>
 #include<stdio.h>
 #include<stdlib.h>
 #include<string.h>
@@ -10,8 +11,12 @@
 #include"helper.c"
 
 void getPath(char *req, char* path);
+void sigpipeHandler(int n);
 
 int main(int argc, char* argv[]){
+    
+    //ignore SIGPIPE
+    signal(SIGPIPE, sigpipeHandler);
 
     if(argc != 2){
         printf("Usage: ./server portno.\n");
@@ -38,12 +43,14 @@ int main(int argc, char* argv[]){
     if(listen(sockfd, 5) < 0)
         perror("listen failed");
 
-    printf("Server: Started running...\n");
+    printf("Server: Started running on port %d ip %s\n", ntohs(servAddr.sin_port), inet_ntoa(servAddr.sin_addr));
 
     struct sockaddr_in cltAddr;
     socklen_t cltAddrlen = sizeof(cltAddr);
 
     for(;;){
+        printf("\n\n");
+
         int newsockfd;
 
         do{
@@ -60,6 +67,8 @@ int main(int argc, char* argv[]){
         char path[256];
 
         int n = read(newsockfd, buff, sizeof(buff));
+
+        printf("Server: bytes read %d \n", n);
         
         printf("Request: ");
         
@@ -71,11 +80,9 @@ int main(int argc, char* argv[]){
         getPath(buff, path);
 
         if(strcmp(path, "/") == 0){
-            
-            printf("Jump: writeDirectoryListing\n");
 
             if(writeDirectoryListing(newsockfd, ".") < 0)
-                exit(1);
+                printf("Server: No response\n");
 
         }else{
 
@@ -85,26 +92,20 @@ int main(int argc, char* argv[]){
             //file not exsist    
             if(stat(path+1, &sb) < 0){
 
-                printf("Jump: writeFileNotFound\n");
-
                 if(writeFileNotFound(newsockfd) < 0){
-                    exit(1);
+                    printf("Server: No response\n");
                 }
 
             }else if((sb.st_mode & S_IFMT) == S_IFDIR){
                 
-                printf("Jump: writeDirectoryListing\n");
-
                 if(writeDirectoryListing(newsockfd, path+1) < 0){
-                    exit(1);
+                    printf("Server: No response\n");
                 }
 
             }else{
 
-                printf("Jump: writeFile\n");
-                
                 if(writeFile(newsockfd, path) < 0){
-                    exit(1);
+                    printf("Server: No response\n");
                 }
             }
         }
@@ -128,5 +129,7 @@ void getPath(char *req, char *path){
     path[j] = '\0';
 }    
     
-    
-    
+void sigpipeHandler(int n){
+    printf("SIGPIPE caught\n");
+}
+
